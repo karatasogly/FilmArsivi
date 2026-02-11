@@ -18,64 +18,61 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- MODEL ---
+# --- MODEL (YENİ KOLON: afis_url) ---
 class Film(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     isim = db.Column(db.String(100), nullable=False)
     yonetmen = db.Column(db.String(100), nullable=False)
+    afis_url = db.Column(db.String(500), nullable=True) # Resim linki için
 
-# Artık tabloların hazır olduğu için drop_all() yapmana gerek yok.
 with app.app_context():
+    # DİKKAT: Yeni kolon eklediğimiz için tabloyu bir kez sıfırlamalıyız.
+    # Verilerin silinmesini istemiyorsan manuel eklenir ama şu an en kolayı bu:
+    db.drop_all() # <-- Hata alırsan buradaki '#' kaldırıp bir kez çalıştır, sonra geri koy.
     db.create_all()
 
-# --- ARAYÜZ (Silme Butonu Eklendi) ---
+# --- ARAYÜZ ---
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Yusuf Film Arşivi</title>
+    <title>Yusuf Film Galeri</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #f8f9fa; }
-        .container { max-width: 700px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { color: #333; text-align: center; }
-        .form-group { display: flex; gap: 10px; margin-bottom: 20px; }
-        input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; }
-        .btn-add { background: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; }
-        .btn-delete { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 13px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
-        th { background: #007bff; color: white; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #1a1a1a; color: white; }
+        .container { max-width: 900px; margin: auto; background: #2d2d2d; padding: 30px; border-radius: 15px; }
+        .form-group { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 30px; }
+        input { padding: 12px; border-radius: 6px; border: none; }
+        .btn-add { background: #e50914; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .card { background: #3d3d3d; padding: 10px; border-radius: 10px; text-align: center; position: relative; }
+        .card img { width: 100%; height: 280px; object-fit: cover; border-radius: 8px; }
+        .btn-delete { position: absolute; top: 5px; right: 5px; background: rgba(229, 9, 20, 0.8); color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🎬 Film Arşivi (Azure SQL)</h2>
+        <h2>🎬 Yusuf'un Film Galerisi</h2>
         <form method="POST" action="/ekle" class="form-group">
             <input type="text" name="isim" placeholder="Film Adı" required>
             <input type="text" name="yonetmen" placeholder="Yönetmen" required>
-            <button type="submit" class="btn-add">Ekle</button>
+            <input type="text" name="afis_url" placeholder="Afiş Resim URL (Link)">
+            <button type="submit" class="btn-add">EKLE</button>
         </form>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Film</th>
-                    <th>Yönetmen</th>
-                    <th>İşlem</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for film in filmler %}
-                <tr>
-                    <td>{{ film.isim }}</td>
-                    <td>{{ film.yonetmen }}</td>
-                    <td>
-                        <a href="{{ url_for('sil', id=film.id) }}" class="btn-delete" onclick="return confirm('Emin misin?')">Sil</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="gallery">
+            {% for film in filmler %}
+            <div class="card">
+                <a href="{{ url_for('sil', id=film.id) }}" class="btn-delete">×</a>
+                {% if film.afis_url %}
+                    <img src="{{ film.afis_url }}" alt="Afiş">
+                {% else %}
+                    <img src="https://via.placeholder.com/200x300?text=Afiş+Yok" alt="Yok">
+                {% endif %}
+                <h3>{{ film.isim }}</h3>
+                <p>{{ film.yonetmen }}</p>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 </body>
 </html>
@@ -89,7 +86,11 @@ def index():
 
 @app.route('/ekle', methods=['POST'])
 def ekle():
-    yeni_film = Film(isim=request.form.get('isim'), yonetmen=request.form.get('yonetmen'))
+    yeni_film = Film(
+        isim=request.form.get('isim'),
+        yonetmen=request.form.get('yonetmen'),
+        afis_url=request.form.get('afis_url')
+    )
     db.session.add(yeni_film)
     db.session.commit()
     return redirect(url_for('index'))
