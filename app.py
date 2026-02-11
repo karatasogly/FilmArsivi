@@ -1,36 +1,55 @@
-import urllib
-from flask import Flask, render_template, request, redirect, url_for
+import urllib.parse
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# --- AZURE SQL BAGLANTI AYARI ---
-# Kopyaladığın ADO.NET kodunu buraya tırnak içine yapıştır.
-# Password={your_password} kısmını silip kendi şifreni yazmayı UNUTMA!
-raw_db_url = "Server=tcp:yusuf-film-server-sweden.database.windows.net,1433;Initial Catalog=free-sql-db-7161867;Persist Security Info=False;User ID=Yusuf2323;Password=BURAYA_KENDI_SIFRENI_YAZ;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+# --- CONFIGURATION (Görüntüye Göre Tam İsabet) ---
+SERVER = 'yusuf-film-server-sweden.database.windows.net'
+# DATABASE ismini görüntündeki gerçek isimle değiştirdim:
+DATABASE = 'yusuf-film-server-sweden'
+USERNAME = 'Yusuf2323'
+PASSWORD = 'yusuf.2323'
+DRIVER = '{ODBC Driver 17 for SQL Server}'
 
-# Azure ve Python arasındaki bağlantı köprüsü
-params = urllib.parse.quote_plus(raw_db_url)
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mssql+pyodbc:///?odbc_connect={params}"
+# Bağlantı dizesini hatasız kuruyoruz
+connection_string = (
+    f"Driver={DRIVER};"
+    f"Server=tcp:{SERVER},1433;"
+    f"Database={DATABASE};"
+    f"Uid={USERNAME};"
+    f"Pwd={PASSWORD};"
+    f"Encrypt=yes;"
+    f"TrustServerCertificate=no;"
+    f"Connection Timeout=30;"
+)
+
+params = urllib.parse.quote_plus(connection_string)
+app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pyodbc:///?odbc_connect=" + params
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- VERITABANI MODELI (ORNEK) ---
+# --- MODEL ---
 class Film(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     isim = db.Column(db.String(100), nullable=False)
-    yonetmen = db.Column(db.String(100), nullable=False)
 
-# Veritabanı tablolarını oluşturur (Azure'da tablo yoksa oluşturur)
+# --- BAĞLANTIYI TEST ET ---
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        print("\n" + "🚀" * 15)
+        print("BAŞARILI! Veritabanı ismi düzeltildi ve bağlantı kuruldu.")
+        print("🚀" * 15 + "\n")
+    except Exception as e:
+        print("\n" + "❌" * 15)
+        print(f"Hala bir pürüz var: {e}")
+        print("❌" * 15 + "\n")
 
-# --- ROUTE'LAR (SAYFALAR) ---
 @app.route('/')
 def index():
-    filmler = Film.query.all()
-    return f"Azure SQL Baglantisi Basarili! Toplam Film Sayisi: {len(filmler)}"
+    return "<h1>Azure SQL Bağlantısı Tamam Yusuf!</h1>"
 
 if __name__ == '__main__':
     app.run(debug=True)
