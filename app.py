@@ -63,7 +63,7 @@ INDEX_TEMPLATE = '''
 
         /* POSTER FIX: Cover the area */
         .poster { 
-            width: 100%; height: 100%; object-fit: contain; 
+            width: 100%; height: 100%; object-fit: cover; 
             position: absolute; top: 0; left: 0; z-index: 10; 
             transition: opacity 0.4s ease; 
         }
@@ -105,8 +105,8 @@ INDEX_TEMPLATE = '''
                     {% if movie.trailer_url %}
                         {% set v_id = movie.trailer_url.split('v=')[-1].split('&')[0] if 'v=' in movie.trailer_url else movie.trailer_url.split('/')[-1] %}
                         <iframe id="player-{{ movie.id }}" width="100%" height="100%" 
-                            src="https://www.youtube.com/embed/{{ v_id }}?enablejsapi=1&controls=1&modestbranding=1&rel=0&autoplay=0&iv_load_policy=3&vq=hd720" 
-                            frameborder="0" allowfullscreen>
+                         src="https://www.youtube.com/embed/{{ v_id }}?enablejsapi=1&controls=1&modestbranding=1&rel=0&autoplay=0&iv_load_policy=3&vq=hd720&mute=1" 
+    frameborder="0" allowfullscreen>   
                         </iframe>
                     {% endif %}
                 </div>
@@ -121,20 +121,22 @@ INDEX_TEMPLATE = '''
     </div>
 
     <script>
-        function playVid(id) {
-            var iframe = document.getElementById('player-' + id);
-            if(iframe) {
-                iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-            }
+    function playVid(id) {
+        var iframe = document.getElementById('player-' + id);
+        if(iframe) {
+            // Mouse gelince videoyu başlatır
+            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
         }
-        function stopVid(id) {
-            var iframe = document.getElementById('player-' + id);
-            if(iframe) {
-                iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-                iframe.contentWindow.postMessage('{"event":"command","func":"seekTo","args":[0, true]}', '*');
-            }
+    }
+    function stopVid(id) {
+        var iframe = document.getElementById('player-' + id);
+        if(iframe) {
+            // Mouse gidince videoyu durdurur ve başa sarar
+            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            iframe.contentWindow.postMessage('{"event":"command","func":"seekTo","args":[0, true]}', '*');
         }
-    </script>
+    }
+</script>
 </body>
 </html>
 '''
