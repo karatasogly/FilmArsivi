@@ -1,4 +1,5 @@
 import urllib.parse
+import random
 from flask import Flask, render_template_string, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
@@ -34,256 +35,177 @@ class Film(db.Model):
 
 
 with app.app_context():
-    # NOT: Eğer ilk kez bu sütunlarla kuruyorsan aşağıdaki satırın başındaki # işaretini kaldır.
+    # Sütunlarda bir değişiklik yoksa drop_all'a gerek yok, ama garanti olsun dersen açabilirsin.
     # db.drop_all()
     db.create_all()
 
-# --- TASARIM (PREMIUM DARK THEME) ---
+# --- TASARIM (JS DESTEKLİ ULTRA PREMİUM) ---
 BASE_STYLE = '''
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap');
+
+    :root { --primary: #e50914; --bg: #080808; --card-bg: #111; --text: #fff; }
+    .light-mode { --bg: #f5f5f7; --card-bg: #fff; --text: #1d1d1f; }
 
     body { 
-        font-family: 'Inter', sans-serif; 
-        background: radial-gradient(circle at top, #1a1a1a 0%, #080808 100%); 
-        color: #ffffff; 
+        font-family: 'Poppins', sans-serif; 
+        background-color: var(--bg); 
+        color: var(--text); 
         margin: 0; 
-        min-height: 100vh;
+        transition: 0.5s ease;
+        overflow-x: hidden;
+    }
+
+    #bg-blur {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-size: cover; background-position: center;
+        filter: blur(80px) brightness(0.3);
+        z-index: -1; transition: 0.8s;
     }
 
     .navbar {
-        background: rgba(0, 0, 0, 0.85);
-        backdrop-filter: blur(15px);
-        padding: 15px 50px;
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #333;
+        background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+        padding: 15px 50px; position: sticky; top: 0; z-index: 1000;
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
     }
 
-    .container { max-width: 1400px; margin: auto; padding: 40px 20px; }
+    .container { max-width: 1400px; margin: auto; padding: 30px; }
 
-    .form-section {
-        background: rgba(255, 255, 255, 0.03);
-        padding: 30px;
-        border-radius: 20px;
-        margin-bottom: 50px;
-        border: 1px solid #222;
-        backdrop-filter: blur(5px);
+    .btn-action {
+        background: var(--primary); color: white; border: none;
+        padding: 10px 20px; border-radius: 30px; font-weight: 600;
+        cursor: pointer; transition: 0.3s; text-decoration: none; font-size: 13px;
     }
+    .btn-action:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--primary); }
 
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 12px;
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 30px; overflow-x: auto; padding-bottom: 10px; }
+    .filter-tag { 
+        background: rgba(255,255,255,0.1); padding: 8px 18px; border-radius: 20px; 
+        font-size: 12px; cursor: pointer; border: 1px solid transparent; transition: 0.3s;
     }
-
-    input, select {
-        background: #121212;
-        border: 1px solid #333;
-        color: white;
-        padding: 12px;
-        border-radius: 8px;
-        transition: 0.3s;
-    }
-
-    input:focus { border-color: #e50914; outline: none; }
-
-    .btn-submit {
-        background: #e50914;
-        color: white;
-        border: none;
-        padding: 12px;
-        border-radius: 8px;
-        font-weight: 700;
-        cursor: pointer;
-        transition: 0.3s;
-    }
-
-    .btn-submit:hover { background: #ff1e27; transform: translateY(-2px); }
-
-    .movie-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 35px;
-    }
+    .filter-tag:hover, .filter-tag.active { border-color: var(--primary); background: rgba(229,9,20,0.2); }
 
     .movie-card {
-        background: #111;
-        border-radius: 15px;
-        overflow: hidden;
-        transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        position: relative;
-        border: 1px solid #222;
+        background: var(--card-bg); border-radius: 20px; overflow: hidden;
+        position: relative; transition: 0.5s cubic-bezier(0.2, 1, 0.3, 1);
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    .movie-card:hover { transform: scale(1.03) translateY(-10px); }
+
+    .movie-poster { width: 100%; height: 400px; object-fit: cover; }
+
+    .movie-info { padding: 20px; background: linear-gradient(to top, var(--card-bg) 80%, transparent); margin-top: -50px; position: relative; }
+
+    .rating-badge {
+        position: absolute; top: -180px; right: 15px;
+        background: var(--primary); padding: 5px 12px; border-radius: 10px; font-weight: 800;
     }
 
-    .movie-card:hover {
-        transform: scale(1.05);
-        border-color: #e50914;
-        box-shadow: 0 10px 30px rgba(229, 9, 20, 0.2);
+    /* Modal Styles */
+    #randomModal {
+        display: none; position: fixed; z-index: 2000; top:0; left:0; width:100%; height:100%;
+        background: rgba(0,0,0,0.9); align-items: center; justify-content: center;
     }
-
-    .movie-poster { width: 100%; height: 380px; object-fit: cover; }
-
-    .rating-tag {
-        position: absolute;
-        top: 15px;
-        right: 15px;
-        background: #e50914;
-        color: white;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-weight: bold;
-        font-size: 13px;
-    }
-
-    .movie-info { padding: 20px; }
-
-    .genre-label {
-        color: #e50914;
-        font-size: 11px;
-        text-transform: uppercase;
-        font-weight: 700;
-        letter-spacing: 1px;
-    }
-
-    .btn-trailer {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        background: #fff;
-        color: #000;
-        text-decoration: none;
-        padding: 10px;
-        border-radius: 8px;
-        margin-top: 15px;
-        font-weight: 700;
-        font-size: 13px;
-    }
-
-    .btn-trailer:hover { background: #e50914; color: #fff; }
-
-    .delete-btn {
-        position: absolute;
-        top: 15px;
-        left: 15px;
-        background: rgba(0,0,0,0.7);
-        color: #fff;
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        opacity: 0;
-        transition: 0.3s;
-    }
-
-    .movie-card:hover .delete-btn { opacity: 1; }
 </style>
 '''
 
 INDEX_TEMPLATE = BASE_STYLE + '''
+<div id="bg-blur"></div>
+
 <nav class="navbar">
-    <div style="font-size: 26px; font-weight: 700; color: #e50914;">YUSUF<span style="color:white">FLIX</span></div>
-    <div style="display: flex; gap: 30px;">
-        <div style="text-align: center;">
-            <div style="font-size: 11px; color: #888;">TOPLAM</div>
-            <div style="font-weight: 700;">{{ total_count }}</div>
-        </div>
-        <div style="text-align: center;">
-            <div style="font-size: 11px; color: #888;">ORTALAMA</div>
-            <div style="font-weight: 700; color: #e50914;">⭐ {{ "%.1f"|format(avg_score or 0) }}</div>
-        </div>
+    <div style="font-size: 28px; font-weight: 800; color: var(--primary);">YUSUF<span style="color:var(--text)">FLIX</span></div>
+    <div style="display: flex; gap: 15px; align-items: center;">
+        <button onclick="pickRandom()" class="btn-action" style="background: #fff; color: #000;">🎲 NE İZLESEM?</button>
+        <button onclick="toggleTheme()" id="themeBtn" class="btn-action" style="background: #333;">🌙</button>
     </div>
 </nav>
 
 <div class="container">
-    <div class="form-section">
-        <h3 style="margin-top:0; margin-bottom:20px; font-weight:400;">Film Kütüphanesine Ekle</h3>
-        <form class="form-grid" method="POST" action="/ekle">
-            <input type="text" name="isim" placeholder="Film Adı" required>
-            <input type="text" name="yonetmen" placeholder="Yönetmen" required>
-            <input type="number" name="yil" placeholder="Yıl">
-            <input type="number" name="puan" placeholder="Puan" step="0.1">
-            <select name="tur">
+    <div class="filter-bar">
+        <a href="/" class="filter-tag active">Tümü</a>
+        <a href="/?filter=top" class="filter-tag">⭐ En Yüksek Puanlılar</a>
+        <a href="/?filter=Aksiyon" class="filter-tag">Aksiyon</a>
+        <a href="/?filter=Bilim Kurgu" class="filter-tag">Bilim Kurgu</a>
+        <a href="/?filter=Komedi" class="filter-tag">Komedi</a>
+    </div>
+
+    <div style="background: rgba(255,255,255,0.03); padding: 25px; border-radius: 20px; margin-bottom: 40px;">
+        <form action="/ekle" method="POST" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+            <input type="text" name="isim" placeholder="Film Adı" required style="padding:10px; border-radius:10px; border:none; background:#222; color:white;">
+            <input type="text" name="yonetmen" placeholder="Yönetmen" required style="padding:10px; border-radius:10px; border:none; background:#222; color:white;">
+            <input type="number" name="puan" placeholder="Puan" step="0.1" style="padding:10px; border-radius:10px; border:none; background:#222; color:white;">
+            <select name="tur" style="padding:10px; border-radius:10px; border:none; background:#222; color:white;">
                 <option value="Aksiyon">Aksiyon</option>
-                <option value="Komedi">Komedi</option>
-                <option value="Dram">Dram</option>
                 <option value="Bilim Kurgu">Bilim Kurgu</option>
-                <option value="Korku">Korku</option>
+                <option value="Dram">Dram</option>
+                <option value="Komedi">Komedi</option>
             </select>
-            <input type="text" name="afis_url" placeholder="Afiş URL">
-            <input type="text" name="fragman_url" placeholder="Fragman (YouTube)">
-            <button type="submit" class="btn-submit">EKLE</button>
+            <input type="text" name="afis_url" placeholder="Afiş URL" style="padding:10px; border-radius:10px; border:none; background:#222; color:white;">
+            <input type="text" name="fragman_url" placeholder="YouTube Link" style="padding:10px; border-radius:10px; border:none; background:#222; color:white;">
+            <button type="submit" class="btn-action">EKLE</button>
         </form>
     </div>
 
-    <div class="movie-grid">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px;">
         {% for film in filmler %}
-        <div class="movie-card">
-            <a href="{{ url_for('sil', id=film.id) }}" class="delete-btn" onclick="return confirm('Silinsin mi Yusuf?')">✕</a>
-            <div class="rating-tag">⭐ {{ film.puan }}</div>
-            <img class="movie-poster" src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/400x600?text=No+Poster' }}">
+        <div class="movie-card" onmouseover="changeBg('{{ film.afis_url }}')" onmouseout="changeBg('')">
+            <div class="rating-badge">⭐ {{ film.puan }}</div>
+            <img class="movie-poster" src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/400x600' }}">
             <div class="movie-info">
-                <span class="genre-label">{{ film.tur }}</span>
-                <h3 style="margin: 10px 0 5px 0; font-size: 20px; letter-spacing: -0.5px;">{{ film.isim }}</h3>
-                <div style="font-size: 14px; color: #777;">{{ film.yil }} • {{ film.yonetmen }}</div>
-
+                <div style="color:var(--primary); font-size:11px; font-weight:700;">{{ film.tur }}</div>
+                <h3 style="margin: 5px 0;">{{ film.isim }}</h3>
+                <div style="font-size: 12px; opacity: 0.7;">{{ film.yonetmen }} • {{ film.yil }}</div>
                 {% if film.fragman_url %}
-                <a href="{{ film.fragman_url }}" target="_blank" class="btn-trailer">▶ FRAGMANI İZLE</a>
+                <a href="{{ film.fragman_url }}" target="_blank" style="display:block; margin-top:15px; text-decoration:none; color:var(--text); font-weight:bold; font-size:13px;">▶ FRAGMANI İZLE</a>
                 {% endif %}
+                <a href="/sil/{{ film.id }}" style="color:red; font-size:10px; text-decoration:none; position:absolute; bottom:10px; right:10px;">SİL</a>
             </div>
         </div>
         {% endfor %}
     </div>
 </div>
+
+<div id="randomModal" onclick="this.style.display='none'">
+    <div id="randomContent" style="text-align:center; color:white;">
+        <h1 style="color:var(--primary)">YUSUF SENİN İÇİN SEÇTİ!</h1>
+        <div id="chosenMovieName" style="font-size: 40px; font-weight: 800;"></div>
+    </div>
+</div>
+
+<script>
+    function changeBg(url) {
+        const bg = document.getElementById('bg-blur');
+        if(url) {
+            bg.style.backgroundImage = `url('${url}')`;
+        } else {
+            bg.style.backgroundImage = 'none';
+        }
+    }
+
+    function toggleTheme() {
+        document.body.classList.toggle('light-mode');
+        const btn = document.getElementById('themeBtn');
+        btn.innerHTML = document.body.classList.contains('light-mode') ? '🌙' : '☀️';
+    }
+
+    const movies = [{% for film in filmler %}"{{ film.isim }}",{% endfor %}];
+    function pickRandom() {
+        if(movies.length == 0) return alert("Önce film ekle Yusuf!");
+        const chosen = movies[Math.floor(random() * movies.length)];
+        document.getElementById('chosenMovieName').innerText = chosen;
+        document.getElementById('randomModal').style.display = 'flex';
+    }
+</script>
 '''
 
 
-# --- ROTALAR ---
-
 @app.route('/')
 def index():
-    filmler = Film.query.order_by(Film.id.desc()).all()
-    total_count = Film.query.count()
-    avg_score = db.session.query(func.avg(Film.puan)).scalar()
-    return render_template_string(INDEX_TEMPLATE, filmler=filmler, total_count=total_count, avg_score=avg_score)
-
-
-@app.route('/ekle', methods=['POST'])
-def ekle():
-    try:
-        yeni_film = Film(
-            isim=request.form.get('isim'),
-            yonetmen=request.form.get('yonetmen'),
-            yil=request.form.get('yil'),
-            puan=request.form.get('puan') or 0,
-            tur=request.form.get('tur'),
-            afis_url=request.form.get('afis_url'),
-            fragman_url=request.form.get('fragman_url')
-        )
-        db.session.add(yeni_film)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return str(e)
-    return redirect(url_for('index'))
-
-
-@app.route('/sil/<int:id>')
-def sil(id):
-    film = Film.query.get(id)
-    if film:
-        db.session.delete(film)
-        db.session.commit()
-    return redirect(url_for('index'))
-
-
-if __name__ == '__main__':
-    app.run()
+    filter_type = request.args.get('filter')
+    if filter_type == 'top':
+        filmler = Film.query.filter(Film.puan >= 8.0).order_by(Film.puan.desc()).all()
+    elif filter_type:
+        filmler = Film.query.filter_by(tur=filter_type).all()
+    else:
+        filmler = Film.query.order
