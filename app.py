@@ -5,8 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# --- CONFIG ---
-# Azure'daki veritabanı bilgilerini buradan alıyoruz
+# --- VERİTABANI AYARLARI ---
 SERVER = 'yusuf-film-server-sweden.database.windows.net'
 DATABASE = 'yusuf-film-server-sweden'
 USERNAME = 'Yusuf2323'
@@ -21,7 +20,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 
-# --- MODEL ---
+# --- VERİTABANI MODELİ ---
 class Film(db.Model):
     __tablename__ = 'film'
     id = db.Column(db.Integer, primary_key=True)
@@ -31,9 +30,9 @@ class Film(db.Model):
     puan = db.Column(db.Float, default=0.0)
 
 
-# Veritabanı tablolarını oluştur (Eğer sütun hatası alırsan drop_all kısmını aktif et)
+# Tabloyu oluşturma (Azure'da ilk kez çalışırken tabloyu hazırlar)
 with app.app_context():
-    db.drop_all() # Tabloyu tamamen sıfırlamak istersen başındaki '#' kaldır
+    # db.drop_all() # Eğer sütun hatası alırsan bir kez bu satırı aktif et
     db.create_all()
 
 # --- TASARIM (HTML & CSS) ---
@@ -45,10 +44,10 @@ BASE_STYLE = '''
     .btn-add { background: #e50914; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.3s; }
     .btn-add:hover { background: #b20710; }
     .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; margin-top: 20px; }
-    .card { background: #262626; padding: 15px; border-radius: 12px; text-align: center; position: relative; border: 1px solid #333; }
+    .card { background: #262626; padding: 15px; border-radius: 12px; text-align: center; position: relative; border: 1px solid #333; height: 100%; }
     .card img { width: 100%; height: 300px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
     .rating-badge { position: absolute; top: 20px; left: 20px; background: rgba(229, 9, 20, 0.9); color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 14px; }
-    .btn-delete { position: absolute; top: 10px; right: 10px; color: #777; text-decoration: none; font-size: 20px; }
+    .btn-delete { position: absolute; top: 10px; right: 10px; color: #777; text-decoration: none; font-size: 20px; font-weight: bold; }
     .btn-delete:hover { color: #e50914; }
     .btn-edit { display: inline-block; margin-top: 10px; color: #007bff; text-decoration: none; font-size: 14px; }
     h2 { text-align: center; color: #e50914; text-transform: uppercase; letter-spacing: 2px; }
@@ -57,7 +56,8 @@ BASE_STYLE = '''
 
 INDEX_TEMPLATE = BASE_STYLE + '''
 <div class="container">
-    <h2>Yusuf'un Film Arşivi</h2>
+    <h2>🎬 Yusuf'un Film Arşivi</h2>
+
     <form method="GET" action="/" style="margin-bottom: 20px;">
         <input type="text" name="search" placeholder="Film veya yönetmen ara..." value="{{ search_query }}">
     </form>
@@ -65,7 +65,7 @@ INDEX_TEMPLATE = BASE_STYLE + '''
     <form method="POST" action="/ekle" style="display: grid; grid-template-columns: 2fr 1.5fr 1.5fr 0.8fr auto; gap: 10px; margin-bottom: 30px;">
         <input type="text" name="isim" placeholder="Film Adı" required>
         <input type="text" name="yonetmen" placeholder="Yönetmen" required>
-        <input type="text" name="afis_url" placeholder="Afiş Link (URL)">
+        <input type="text" name="afis_url" placeholder="Afiş URL">
         <input type="number" name="puan" placeholder="Puan" step="0.1" min="0" max="10">
         <button type="submit" class="btn-add">EKLE</button>
     </form>
@@ -75,7 +75,7 @@ INDEX_TEMPLATE = BASE_STYLE + '''
         <div class="card">
             <a href="{{ url_for('sil', id=film.id) }}" class="btn-delete" onclick="return confirm('Sileyim mi Yusuf?')">×</a>
             <div class="rating-badge">⭐ {{ film.puan }}</div>
-            <img src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/200x300?text=Afiş+Yok' }}">
+            <img src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/200x300?text=Afis+Yok' }}">
             <h4 style="margin: 10px 0 5px 0;">{{ film.isim }}</h4>
             <p style="color: #999; font-size: 13px; margin: 0;">{{ film.yonetmen }}</p>
             <a href="{{ url_for('duzenle', id=film.id) }}" class="btn-edit">Düzenle</a>
@@ -93,14 +93,14 @@ EDIT_TEMPLATE = BASE_STYLE + '''
         <input type="text" name="yonetmen" value="{{ film.yonetmen }}" required>
         <input type="text" name="afis_url" value="{{ film.afis_url }}">
         <input type="number" name="puan" value="{{ film.puan }}" step="0.1" min="0" max="10">
-        <button type="submit" class="btn-add">BİLGİLERİ GÜNCELLE</button>
-        <a href="/" style="display: block; text-align: center; color: #777; margin-top: 15px; text-decoration: none;">İptal Et</a>
+        <button type="submit" class="btn-add">GÜNCELLE</button>
+        <a href="/" style="display: block; text-align: center; color: #777; margin-top: 15px; text-decoration: none;">İptal</a>
     </form>
 </div>
 '''
 
 
-# --- ROUTES ---
+# --- ROTALAR (ROUTES) ---
 
 @app.route('/')
 def index():
@@ -126,7 +126,7 @@ def ekle():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return f"Ekleme Hatası: {e}"
+        return f"Hata: {e}"
     return redirect(url_for('index'))
 
 
@@ -154,4 +154,4 @@ def sil(id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
