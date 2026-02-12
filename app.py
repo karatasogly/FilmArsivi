@@ -101,7 +101,7 @@ def index():
         filmler = Film.query.order_by(Film.puan.desc()).all() # Puanı yüksek olan en üstte
     return render_template_string(INDEX_TEMPLATE, filmler=filmler, search_query=search_query)
 
-@app.route('/ekle', methods=['POST'])
+@app.route('/ekle', methods=['GET', 'POST'])
 def ekle():
     puan_val = request.form.get('puan')
     yeni_film = Film(
