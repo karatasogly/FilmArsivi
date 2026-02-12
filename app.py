@@ -33,7 +33,7 @@ class Film(db.Model):
 
 # Veritabanı tablolarını oluştur (Eğer sütun hatası alırsan drop_all kısmını aktif et)
 with app.app_context():
-    # db.drop_all() # Tabloyu tamamen sıfırlamak istersen başındaki '#' kaldır
+    db.drop_all() # Tabloyu tamamen sıfırlamak istersen başındaki '#' kaldır
     db.create_all()
 
 # --- TASARIM (HTML & CSS) ---
