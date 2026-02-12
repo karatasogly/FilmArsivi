@@ -1,6 +1,7 @@
 import urllib.parse
 from flask import Flask, render_template_string, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 
 app = Flask(__name__)
 
@@ -25,64 +26,82 @@ class Film(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     isim = db.Column(db.String(100), nullable=False)
     yonetmen = db.Column(db.String(100), nullable=False)
-    yil = db.Column(db.Integer, nullable=True)
-    puan = db.Column(db.Float, default=0.0)
-    afis_url = db.Column(db.String(500), nullable=True)
-    fragman_url = db.Column(db.String(500), nullable=True)  # YENİ SÜTUN
+    yil = db.Column(db.Integer)
+    puan = db.Column(db.Float)
+    tur = db.Column(db.String(50))  # Yeni: Tür
+    afis_url = db.Column(db.String(500))
+    fragman_url = db.Column(db.String(500))  # Yeni: Fragman
+    izlendi = db.Column(db.Boolean, default=False)  # Yeni: İzlenme durumu
 
 
 with app.app_context():
-    # Sütun değişikliği olduğu için bir kez sıfırlama yapmalısın
-    db.drop_all()
+    db.drop_all()  # ŞİMDİLİK AÇIK - Push sonrası kapatacağız
     db.create_all()
 
-# --- TASARIM (CSS Güncellendi) ---
+# --- TASARIM ---
 BASE_STYLE = '''
 <style>
-    body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #141414; color: white; }
-    .container { max-width: 1200px; margin: auto; background: #1f1f1f; padding: 30px; border-radius: 15px; }
-    input { padding: 12px; border-radius: 6px; border: 1px solid #333; background: #2b2b2b; color: white; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
-    .btn-add { background: #e50914; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
-    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-top: 20px; }
-    .card { background: #262626; padding: 15px; border-radius: 12px; text-align: center; position: relative; border: 1px solid #333; transition: 0.3s; }
-    .card:hover { transform: scale(1.02); border-color: #e50914; }
-    .card img { width: 100%; height: 300px; object-fit: cover; border-radius: 8px; }
-    .rating-badge { position: absolute; top: 20px; left: 20px; background: rgba(229, 9, 20, 0.9); color: white; padding: 4px 8px; border-radius: 5px; font-weight: bold; }
-    .btn-trailer { display: inline-block; background: #333; color: #fff; padding: 8px 15px; border-radius: 20px; text-decoration: none; font-size: 12px; margin-top: 10px; border: 1px solid #e50914; }
-    .btn-trailer:hover { background: #e50914; }
-    .btn-delete { position: absolute; top: 10px; right: 10px; color: #777; text-decoration: none; }
-    h2 { text-align: center; color: #e50914; }
+    body { font-family: 'Inter', sans-serif; background-color: #0f0f0f; color: #e5e5e5; margin: 0; padding: 20px; }
+    .container { max-width: 1200px; margin: auto; }
+    .stats-bar { display: flex; gap: 20px; margin-bottom: 20px; background: #1a1a1a; padding: 15px; border-radius: 10px; border-left: 5px solid #e50914; }
+    .stat-item { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #aaa; }
+    .stat-value { color: #fff; font-weight: bold; font-size: 18px; }
+    .form-box { background: #1a1a1a; padding: 20px; border-radius: 12px; margin-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    input, select { background: #262626; border: 1px solid #333; color: white; padding: 10px; border-radius: 5px; }
+    .btn-submit { background: #e50914; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 25px; }
+    .card { background: #1a1a1a; border-radius: 12px; overflow: hidden; position: relative; border: 1px solid #222; transition: 0.3s; }
+    .card:hover { transform: translateY(-5px); border-color: #e50914; }
+    .card img { width: 100%; height: 320px; object-fit: cover; }
+    .card-content { padding: 15px; }
+    .badge-puan { position: absolute; top: 10px; left: 10px; background: #e50914; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 12px; }
+    .badge-tur { font-size: 11px; background: #333; padding: 3px 8px; border-radius: 10px; color: #ccc; }
+    .btn-play { display: block; text-align: center; background: #333; color: white; text-decoration: none; padding: 8px; margin-top: 10px; border-radius: 5px; font-size: 13px; transition: 0.2s; }
+    .btn-play:hover { background: #fff; color: black; }
+    .delete-x { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; text-decoration: none; width: 25px; height: 25px; border-radius: 50%; text-align: center; }
 </style>
 '''
 
 INDEX_TEMPLATE = BASE_STYLE + '''
 <div class="container">
-    <h2>🎬 Yusuf'un Film Arşivi</h2>
+    <h1 style="color:#e50914">YUSUF CINEMA+</h1>
 
-    <form method="POST" action="/ekle" style="display: grid; grid-template-columns: repeat(3, 1fr) 0.5fr 0.5fr 1fr auto; gap: 8px; margin-bottom: 30px;">
+    <div class="stats-bar">
+        <div class="stat-item">Toplam Film: <span class="stat-value">{{ total_count }}</span></div>
+        <div class="stat-item">Ortalama Puan: <span class="stat-value">{{ "%.1f"|format(avg_score or 0) }}</span></div>
+    </div>
+
+    <form class="form-box" method="POST" action="/ekle">
         <input type="text" name="isim" placeholder="Film Adı" required>
         <input type="text" name="yonetmen" placeholder="Yönetmen" required>
-        <input type="text" name="afis_url" placeholder="Afiş URL">
         <input type="number" name="yil" placeholder="Yıl">
-        <input type="number" name="puan" placeholder="Puan" step="0.1">
-        <input type="text" name="fragman_url" placeholder="YouTube Fragman Linki">
-        <button type="submit" class="btn-add">EKLE</button>
+        <input type="number" name="puan" placeholder="Puan (0-10)" step="0.1">
+        <select name="tur">
+            <option value="Aksiyon">Aksiyon</option>
+            <option value="Komedi">Komedi</option>
+            <option value="Dram">Dram</option>
+            <option value="Bilim Kurgu">Bilim Kurgu</option>
+            <option value="Korku">Korku</option>
+        </select>
+        <input type="text" name="afis_url" placeholder="Afiş URL">
+        <input type="text" name="fragman_url" placeholder="Fragman (YouTube)">
+        <button type="submit" class="btn-submit">EKLE</button>
     </form>
 
-    <div class="gallery">
+    <div class="grid">
         {% for film in filmler %}
         <div class="card">
-            <a href="{{ url_for('sil', id=film.id) }}" class="btn-delete" onclick="return confirm('Silinsin mi?')">×</a>
-            <div class="rating-badge">⭐ {{ film.puan }}</div>
-            <img src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/200x300?text=Resim+Yok' }}">
-            <h4 style="margin: 10px 0 5px 0;">{{ film.isim }} ({{ film.yil }})</h4>
-            <p style="color: #999; font-size: 13px;">{{ film.yonetmen }}</p>
-
-            {% if film.fragman_url %}
-            <a href="{{ film.fragman_url }}" target="_blank" class="btn-trailer">▶ Fragman İzle</a>
-            {% endif %}
-            <br>
-            <a href="{{ url_for('duzenle', id=film.id) }}" style="color: #007bff; font-size: 12px; text-decoration: none;">Düzenle</a>
+            <a href="{{ url_for('sil', id=film.id) }}" class="delete-x" onclick="return confirm('Silinsin mi?')">×</a>
+            <div class="badge-puan">⭐ {{ film.puan }}</div>
+            <img src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/300x450' }}">
+            <div class="card-content">
+                <span class="badge-tur">{{ film.tur }}</span>
+                <h3 style="margin: 10px 0 5px 0;">{{ film.isim }}</h3>
+                <p style="font-size: 13px; color: #888; margin: 0;">{{ film.yonetmen }} | {{ film.yil }}</p>
+                {% if film.fragman_url %}
+                <a href="{{ film.fragman_url }}" target="_blank" class="btn-play">▶ Fragmanı İzle</a>
+                {% endif %}
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -90,13 +109,12 @@ INDEX_TEMPLATE = BASE_STYLE + '''
 '''
 
 
-# (Düzenle template'i ve rotaları fragman_url dahil edilerek güncellendi...)
-# --- ROTALAR ---
-
 @app.route('/')
 def index():
     filmler = Film.query.order_by(Film.id.desc()).all()
-    return render_template_string(INDEX_TEMPLATE, filmler=filmler)
+    total_count = Film.query.count()
+    avg_score = db.session.query(func.avg(Film.puan)).scalar()
+    return render_template_string(INDEX_TEMPLATE, filmler=filmler, total_count=total_count, avg_score=avg_score)
 
 
 @app.route('/ekle', methods=['POST'])
@@ -106,7 +124,8 @@ def ekle():
             isim=request.form.get('isim'),
             yonetmen=request.form.get('yonetmen'),
             yil=request.form.get('yil'),
-            puan=request.form.get('puan') if request.form.get('puan') else 0.0,
+            puan=request.form.get('puan') or 0,
+            tur=request.form.get('tur'),
             afis_url=request.form.get('afis_url'),
             fragman_url=request.form.get('fragman_url')
         )
@@ -114,23 +133,8 @@ def ekle():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return f"Hata: {e}"
+        return str(e)
     return redirect(url_for('index'))
-
-
-@app.route('/duzenle/<int:id>', methods=['GET', 'POST'])
-def duzenle(id):
-    film = Film.query.get_or_404(id)
-    if request.method == 'POST':
-        film.isim = request.form.get('isim')
-        film.yonetmen = request.form.get('yonetmen')
-        film.yil = request.form.get('yil')
-        film.puan = request.form.get('puan')
-        film.afis_url = request.form.get('afis_url')
-        film.fragman_url = request.form.get('fragman_url')
-        db.session.commit()
-        return redirect(url_for('index'))
-    return render_template_string("Kayıt Güncelleme Sayfası", film=film)  # Basitleştirildi
 
 
 @app.route('/sil/<int:id>')
