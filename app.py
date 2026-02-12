@@ -28,78 +28,215 @@ class Film(db.Model):
     yonetmen = db.Column(db.String(100), nullable=False)
     yil = db.Column(db.Integer)
     puan = db.Column(db.Float)
-    tur = db.Column(db.String(50))  # Yeni: Tür
+    tur = db.Column(db.String(50))
     afis_url = db.Column(db.String(500))
-    fragman_url = db.Column(db.String(500))  # Yeni: Fragman
-    izlendi = db.Column(db.Boolean, default=False)  # Yeni: İzlenme durumu
+    fragman_url = db.Column(db.String(500))
 
 
 with app.app_context():
-    db.drop_all()  # ŞİMDİLİK AÇIK - Push sonrası kapatacağız
+    # NOT: Eğer ilk kez bu sütunlarla kuruyorsan aşağıdaki satırın başındaki # işaretini kaldır.
+    # db.drop_all()
     db.create_all()
 
-# --- TASARIM ---
+# --- TASARIM (PREMIUM DARK THEME) ---
 BASE_STYLE = '''
 <style>
-    body { font-family: 'Inter', sans-serif; background-color: #0f0f0f; color: #e5e5e5; margin: 0; padding: 20px; }
-    .container { max-width: 1200px; margin: auto; }
-    .stats-bar { display: flex; gap: 20px; margin-bottom: 20px; background: #1a1a1a; padding: 15px; border-radius: 10px; border-left: 5px solid #e50914; }
-    .stat-item { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #aaa; }
-    .stat-value { color: #fff; font-weight: bold; font-size: 18px; }
-    .form-box { background: #1a1a1a; padding: 20px; border-radius: 12px; margin-bottom: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-    input, select { background: #262626; border: 1px solid #333; color: white; padding: 10px; border-radius: 5px; }
-    .btn-submit { background: #e50914; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 25px; }
-    .card { background: #1a1a1a; border-radius: 12px; overflow: hidden; position: relative; border: 1px solid #222; transition: 0.3s; }
-    .card:hover { transform: translateY(-5px); border-color: #e50914; }
-    .card img { width: 100%; height: 320px; object-fit: cover; }
-    .card-content { padding: 15px; }
-    .badge-puan { position: absolute; top: 10px; left: 10px; background: #e50914; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 12px; }
-    .badge-tur { font-size: 11px; background: #333; padding: 3px 8px; border-radius: 10px; color: #ccc; }
-    .btn-play { display: block; text-align: center; background: #333; color: white; text-decoration: none; padding: 8px; margin-top: 10px; border-radius: 5px; font-size: 13px; transition: 0.2s; }
-    .btn-play:hover { background: #fff; color: black; }
-    .delete-x { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; text-decoration: none; width: 25px; height: 25px; border-radius: 50%; text-align: center; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
+
+    body { 
+        font-family: 'Inter', sans-serif; 
+        background: radial-gradient(circle at top, #1a1a1a 0%, #080808 100%); 
+        color: #ffffff; 
+        margin: 0; 
+        min-height: 100vh;
+    }
+
+    .navbar {
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(15px);
+        padding: 15px 50px;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #333;
+    }
+
+    .container { max-width: 1400px; margin: auto; padding: 40px 20px; }
+
+    .form-section {
+        background: rgba(255, 255, 255, 0.03);
+        padding: 30px;
+        border-radius: 20px;
+        margin-bottom: 50px;
+        border: 1px solid #222;
+        backdrop-filter: blur(5px);
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    input, select {
+        background: #121212;
+        border: 1px solid #333;
+        color: white;
+        padding: 12px;
+        border-radius: 8px;
+        transition: 0.3s;
+    }
+
+    input:focus { border-color: #e50914; outline: none; }
+
+    .btn-submit {
+        background: #e50914;
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+
+    .btn-submit:hover { background: #ff1e27; transform: translateY(-2px); }
+
+    .movie-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 35px;
+    }
+
+    .movie-card {
+        background: #111;
+        border-radius: 15px;
+        overflow: hidden;
+        transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative;
+        border: 1px solid #222;
+    }
+
+    .movie-card:hover {
+        transform: scale(1.05);
+        border-color: #e50914;
+        box-shadow: 0 10px 30px rgba(229, 9, 20, 0.2);
+    }
+
+    .movie-poster { width: 100%; height: 380px; object-fit: cover; }
+
+    .rating-tag {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: #e50914;
+        color: white;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 13px;
+    }
+
+    .movie-info { padding: 20px; }
+
+    .genre-label {
+        color: #e50914;
+        font-size: 11px;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+
+    .btn-trailer {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: #fff;
+        color: #000;
+        text-decoration: none;
+        padding: 10px;
+        border-radius: 8px;
+        margin-top: 15px;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    .btn-trailer:hover { background: #e50914; color: #fff; }
+
+    .delete-btn {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        background: rgba(0,0,0,0.7);
+        color: #fff;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        opacity: 0;
+        transition: 0.3s;
+    }
+
+    .movie-card:hover .delete-btn { opacity: 1; }
 </style>
 '''
 
 INDEX_TEMPLATE = BASE_STYLE + '''
-<div class="container">
-    <h1 style="color:#e50914">YUSUF CINEMA+</h1>
+<nav class="navbar">
+    <div style="font-size: 26px; font-weight: 700; color: #e50914;">YUSUF<span style="color:white">FLIX</span></div>
+    <div style="display: flex; gap: 30px;">
+        <div style="text-align: center;">
+            <div style="font-size: 11px; color: #888;">TOPLAM</div>
+            <div style="font-weight: 700;">{{ total_count }}</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 11px; color: #888;">ORTALAMA</div>
+            <div style="font-weight: 700; color: #e50914;">⭐ {{ "%.1f"|format(avg_score or 0) }}</div>
+        </div>
+    </div>
+</nav>
 
-    <div class="stats-bar">
-        <div class="stat-item">Toplam Film: <span class="stat-value">{{ total_count }}</span></div>
-        <div class="stat-item">Ortalama Puan: <span class="stat-value">{{ "%.1f"|format(avg_score or 0) }}</span></div>
+<div class="container">
+    <div class="form-section">
+        <h3 style="margin-top:0; margin-bottom:20px; font-weight:400;">Film Kütüphanesine Ekle</h3>
+        <form class="form-grid" method="POST" action="/ekle">
+            <input type="text" name="isim" placeholder="Film Adı" required>
+            <input type="text" name="yonetmen" placeholder="Yönetmen" required>
+            <input type="number" name="yil" placeholder="Yıl">
+            <input type="number" name="puan" placeholder="Puan" step="0.1">
+            <select name="tur">
+                <option value="Aksiyon">Aksiyon</option>
+                <option value="Komedi">Komedi</option>
+                <option value="Dram">Dram</option>
+                <option value="Bilim Kurgu">Bilim Kurgu</option>
+                <option value="Korku">Korku</option>
+            </select>
+            <input type="text" name="afis_url" placeholder="Afiş URL">
+            <input type="text" name="fragman_url" placeholder="Fragman (YouTube)">
+            <button type="submit" class="btn-submit">EKLE</button>
+        </form>
     </div>
 
-    <form class="form-box" method="POST" action="/ekle">
-        <input type="text" name="isim" placeholder="Film Adı" required>
-        <input type="text" name="yonetmen" placeholder="Yönetmen" required>
-        <input type="number" name="yil" placeholder="Yıl">
-        <input type="number" name="puan" placeholder="Puan (0-10)" step="0.1">
-        <select name="tur">
-            <option value="Aksiyon">Aksiyon</option>
-            <option value="Komedi">Komedi</option>
-            <option value="Dram">Dram</option>
-            <option value="Bilim Kurgu">Bilim Kurgu</option>
-            <option value="Korku">Korku</option>
-        </select>
-        <input type="text" name="afis_url" placeholder="Afiş URL">
-        <input type="text" name="fragman_url" placeholder="Fragman (YouTube)">
-        <button type="submit" class="btn-submit">EKLE</button>
-    </form>
-
-    <div class="grid">
+    <div class="movie-grid">
         {% for film in filmler %}
-        <div class="card">
-            <a href="{{ url_for('sil', id=film.id) }}" class="delete-x" onclick="return confirm('Silinsin mi?')">×</a>
-            <div class="badge-puan">⭐ {{ film.puan }}</div>
-            <img src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/300x450' }}">
-            <div class="card-content">
-                <span class="badge-tur">{{ film.tur }}</span>
-                <h3 style="margin: 10px 0 5px 0;">{{ film.isim }}</h3>
-                <p style="font-size: 13px; color: #888; margin: 0;">{{ film.yonetmen }} | {{ film.yil }}</p>
+        <div class="movie-card">
+            <a href="{{ url_for('sil', id=film.id) }}" class="delete-btn" onclick="return confirm('Silinsin mi Yusuf?')">✕</a>
+            <div class="rating-tag">⭐ {{ film.puan }}</div>
+            <img class="movie-poster" src="{{ film.afis_url if film.afis_url else 'https://via.placeholder.com/400x600?text=No+Poster' }}">
+            <div class="movie-info">
+                <span class="genre-label">{{ film.tur }}</span>
+                <h3 style="margin: 10px 0 5px 0; font-size: 20px; letter-spacing: -0.5px;">{{ film.isim }}</h3>
+                <div style="font-size: 14px; color: #777;">{{ film.yil }} • {{ film.yonetmen }}</div>
+
                 {% if film.fragman_url %}
-                <a href="{{ film.fragman_url }}" target="_blank" class="btn-play">▶ Fragmanı İzle</a>
+                <a href="{{ film.fragman_url }}" target="_blank" class="btn-trailer">▶ FRAGMANI İZLE</a>
                 {% endif %}
             </div>
         </div>
@@ -108,6 +245,8 @@ INDEX_TEMPLATE = BASE_STYLE + '''
 </div>
 '''
 
+
+# --- ROTALAR ---
 
 @app.route('/')
 def index():
