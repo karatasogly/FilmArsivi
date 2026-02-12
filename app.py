@@ -12,7 +12,7 @@ USERNAME = 'Yusuf2323'
 PASSWORD = 'yusuf.2323'
 DRIVER = '{ODBC Driver 17 for SQL Server}'
 
-connection_string = f"Driver={DRIVER};Server=tcp:{SERVER},1433;Database={DATABASE};Uid={USERNAME};Pwd={PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=60;"
+connection_string = f"Driver={DRIVER};Server=tcp:{SERVER},1433;Database={DATABASE};Uid={USERNAME};Pwd={PASSWORD};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=120;"
 params = urllib.parse.quote_plus(connection_string)
 app.config['SQLALCHEMY_DATABASE_URI'] = "mssql+pyodbc:///?odbc_connect=" + params
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
