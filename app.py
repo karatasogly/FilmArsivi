@@ -137,3 +137,27 @@ def sil(id):
 
 if __name__ == '__main__':
     app.run(debug=True)
+    from flask import request, redirect, url_for, render_template
+
+
+    # ... mevcut kodların ...
+
+    @app.route('/ekle', methods=['GET', 'POST'])
+    def film_ekle():
+        if request.method == 'POST':
+            # Formdan gelen verileri alıyoruz
+            yeni_baslik = request.form.get('baslik')
+            yeni_yonetmen = request.form.get('yonetmen')
+            yeni_yil = request.form.get('yil')
+
+            # Yeni film nesnesi oluşturuyoruz (Tablo adının 'Film' olduğunu varsayıyorum)
+            yeni_film = Film(baslik=yeni_baslik, yonetmen=yeni_yonetmen, yil=yeni_yil)
+
+            try:
+                db.session.add(yeni_film)
+                db.session.commit()
+                return redirect(url_for('index'))  # Ana sayfaya geri dön
+            except Exception as e:
+                return f"Bir hata oluştu: {e}"
+
+        return render_template('ekle.html')  # Formun olduğu sayfa
