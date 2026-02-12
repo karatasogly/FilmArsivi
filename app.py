@@ -1,10 +1,12 @@
 import urllib.parse
+import os
 from flask import Flask, render_template_string, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
 # --- CONFIG ---
+# Azure'daki veritabanı bilgilerini buradan alıyoruz
 SERVER = 'yusuf-film-server-sweden.database.windows.net'
 DATABASE = 'yusuf-film-server-sweden'
 USERNAME = 'Yusuf2323'
@@ -18,26 +20,30 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- MODEL (Puan Sütunu Eklendi) ---
+
+# --- MODEL ---
 class Film(db.Model):
+    __tablename__ = 'film'
     id = db.Column(db.Integer, primary_key=True)
     isim = db.Column(db.String(100), nullable=False)
     yonetmen = db.Column(db.String(100), nullable=False)
     afis_url = db.Column(db.String(500), nullable=True)
-    puan = db.Column(db.Float, default=0.0) # Yeni Sütun: IMDB Puanı
+    puan = db.Column(db.Float, default=0.0)
 
+
+# Veritabanı tablolarını oluştur (Eğer sütun hatası alırsan drop_all kısmını aktif et)
 with app.app_context():
-    # DİKKAT: Puan sütunu için tabloyu bir kez sıfırlamalıyız.
-    db.drop_all() # <-- Hata alırsan '#' kaldır, bir kez çalıştır, sonra geri koy.
+    # db.drop_all() # Tabloyu tamamen sıfırlamak istersen başındaki '#' kaldır
     db.create_all()
 
-# --- TASARIM (Puanlar ve Rozetler Eklendi) ---
+# --- TASARIM (HTML & CSS) ---
 BASE_STYLE = '''
 <style>
     body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #141414; color: white; }
     .container { max-width: 1000px; margin: auto; background: #1f1f1f; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    input, select { padding: 12px; border-radius: 6px; border: 1px solid #333; background: #2b2b2b; color: white; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
-    .btn-add { background: #e50914; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+    input { padding: 12px; border-radius: 6px; border: 1px solid #333; background: #2b2b2b; color: white; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+    .btn-add { background: #e50914; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.3s; }
+    .btn-add:hover { background: #b20710; }
     .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; margin-top: 20px; }
     .card { background: #262626; padding: 15px; border-radius: 12px; text-align: center; position: relative; border: 1px solid #333; }
     .card img { width: 100%; height: 300px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; }
@@ -55,13 +61,15 @@ INDEX_TEMPLATE = BASE_STYLE + '''
     <form method="GET" action="/" style="margin-bottom: 20px;">
         <input type="text" name="search" placeholder="Film veya yönetmen ara..." value="{{ search_query }}">
     </form>
+
     <form method="POST" action="/ekle" style="display: grid; grid-template-columns: 2fr 1.5fr 1.5fr 0.8fr auto; gap: 10px; margin-bottom: 30px;">
         <input type="text" name="isim" placeholder="Film Adı" required>
         <input type="text" name="yonetmen" placeholder="Yönetmen" required>
-        <input type="text" name="afis_url" placeholder="Afiş Link">
+        <input type="text" name="afis_url" placeholder="Afiş Link (URL)">
         <input type="number" name="puan" placeholder="Puan" step="0.1" min="0" max="10">
         <button type="submit" class="btn-add">EKLE</button>
     </form>
+
     <div class="gallery">
         {% for film in filmler %}
         <div class="card">
@@ -91,28 +99,36 @@ EDIT_TEMPLATE = BASE_STYLE + '''
 </div>
 '''
 
+
 # --- ROUTES ---
+
 @app.route('/')
 def index():
     search_query = request.args.get('search', '')
     if search_query:
         filmler = Film.query.filter((Film.isim.contains(search_query)) | (Film.yonetmen.contains(search_query))).all()
     else:
-        filmler = Film.query.order_by(Film.puan.desc()).all() # Puanı yüksek olan en üstte
+        filmler = Film.query.order_by(Film.puan.desc()).all()
     return render_template_string(INDEX_TEMPLATE, filmler=filmler, search_query=search_query)
 
-@app.route('/ekle', methods=['GET', 'POST'])
+
+@app.route('/ekle', methods=['POST'])
 def ekle():
-    puan_val = request.form.get('puan')
-    yeni_film = Film(
-        isim=request.form.get('isim'),
-        yonetmen=request.form.get('yonetmen'),
-        afis_url=request.form.get('afis_url'),
-        puan=float(puan_val) if puan_val else 0.0
-    )
-    db.session.add(yeni_film)
-    db.session.commit()
+    try:
+        puan_val = request.form.get('puan')
+        yeni_film = Film(
+            isim=request.form.get('isim'),
+            yonetmen=request.form.get('yonetmen'),
+            afis_url=request.form.get('afis_url'),
+            puan=float(puan_val) if puan_val else 0.0
+        )
+        db.session.add(yeni_film)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return f"Ekleme Hatası: {e}"
     return redirect(url_for('index'))
+
 
 @app.route('/duzenle/<int:id>', methods=['GET', 'POST'])
 def duzenle(id):
@@ -127,6 +143,7 @@ def duzenle(id):
         return redirect(url_for('index'))
     return render_template_string(EDIT_TEMPLATE, film=film)
 
+
 @app.route('/sil/<int:id>')
 def sil(id):
     film = Film.query.get(id)
@@ -135,31 +152,6 @@ def sil(id):
         db.session.commit()
     return redirect(url_for('index'))
 
+
 if __name__ == '__main__':
     app.run(debug=True)
-    from flask import request, redirect, url_for, render_template
-
-
-    # ... mevcut kodların ...
-
-    @app.route('/ekle', methods=['GET', 'POST'])
-    def film_ekle():
-        if request.method == 'POST':
-            # Formdan gelen verileri alıyoruz
-            film_adi = request.form.get('isim')
-            film_yonetmen = request.form.get('yonetmen')
-            film_yil = request.form.get('yil')
-
-            # Veritabanı modelindeki sütun adlarına göre eşliyoruz
-            # Loglara göre 'isim' sütunu zorunlu olduğu için burası kritik
-            new_movie = Film(isim=film_adi, yonetmen=film_yonetmen, yil=film_yil)
-
-            try:
-                db.session.add(new_movie)
-                db.session.commit()
-                return redirect(url_for('index'))
-            except Exception as e:
-                db.session.rollback()
-                return f"Veritabanı Hatası: {e}"
-
-        return render_template('ekle.html')
