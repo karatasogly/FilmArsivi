@@ -33,7 +33,7 @@ class Film(db.Model):
 
 with app.app_context():
     # Yeni sütun eklendiği için bir kez sıfırlamak gerekebilir
-    db.drop_all()
+    # db.drop_all()
     db.create_all()
 
 # --- TASARIM (CSS Güncellendi) ---
