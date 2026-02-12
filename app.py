@@ -146,18 +146,20 @@ if __name__ == '__main__':
     def film_ekle():
         if request.method == 'POST':
             # Formdan gelen verileri alıyoruz
-            yeni_baslik = request.form.get('baslik')
-            yeni_yonetmen = request.form.get('yonetmen')
-            yeni_yil = request.form.get('yil')
+            film_adi = request.form.get('isim')
+            film_yonetmen = request.form.get('yonetmen')
+            film_yil = request.form.get('yil')
 
-            # Yeni film nesnesi oluşturuyoruz (Tablo adının 'Film' olduğunu varsayıyorum)
-            yeni_film = Film(baslik=yeni_baslik, yonetmen=yeni_yonetmen, yil=yeni_yil)
+            # Veritabanı modelindeki sütun adlarına göre eşliyoruz
+            # Loglara göre 'isim' sütunu zorunlu olduğu için burası kritik
+            new_movie = Film(isim=film_adi, yonetmen=film_yonetmen, yil=film_yil)
 
             try:
-                db.session.add(yeni_film)
+                db.session.add(new_movie)
                 db.session.commit()
-                return redirect(url_for('index'))  # Ana sayfaya geri dön
+                return redirect(url_for('index'))
             except Exception as e:
-                return f"Bir hata oluştu: {e}"
+                db.session.rollback()
+                return f"Veritabanı Hatası: {e}"
 
-        return render_template('ekle.html')  # Formun olduğu sayfa
+        return render_template('ekle.html')
